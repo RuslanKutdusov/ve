@@ -5,10 +5,14 @@
 #include <math.h>
 #include <functional>
 
+#include <vector>
+#include <memory>
+
+
 typedef double FP;
 const FP e = 2.718281828;
 
-void sweep( FP** a, FP* b, int N )
+void sweep( std::vector< std::vector< FP > >& a, std::vector< FP >& b, int N )
 {
 	FP znam; 
 
@@ -35,7 +39,7 @@ void sweep( FP** a, FP* b, int N )
 
 
 //
-void TridiagonalMatrixAlgorithm( int N, FP* solution )
+void TridiagonalMatrixAlgorithm( int N, std::vector< FP >& solution )
 {
 	FP h = 1.0 / ( FP )N;
 
@@ -50,16 +54,13 @@ void TridiagonalMatrixAlgorithm( int N, FP* solution )
 		return -e * h + h / e - 2.9 * h;
 	};
 
-	FP** A = new FP*[ N ];
-
-	FP* B = solution;
+	std::vector< std::vector< FP > > A( N, std::vector< FP >( N ) );
+	auto& B = solution;
 
 	FP xi = 0.0;
 
 	for( int i = 0; i < N - 1; i++ )
 	{
-		A[ i ] = new FP[ N ];
-
 		FP b = 2.0 + h * h;
 
 		if( i != 0 )
@@ -71,8 +72,6 @@ void TridiagonalMatrixAlgorithm( int N, FP* solution )
 		B[ i ] = di( xi );
 		xi += h;
 	}
-
-	A[ N - 1 ] = new FP[ N ];
 	
 	A[ N - 1 ][ N - 2 ] = 1.0;
 	A[ N - 1 ][ N - 1 ] = -1.0;
@@ -165,6 +164,48 @@ void Shoot( const int N, FP* yiRunge )
 
 
 //
+void TridiagonalMatrixAlgorithmLagrange( int N, std::vector< FP >& solution )
+{
+	FP h = 1.0 / ( FP )N;
+
+	auto di = [h]( FP xi )
+	{
+		FP h2 = h * h;
+		return -2.9 * xi * xi * h2 + 2.9 * xi * h2 + 7.8 * h2;
+	};
+
+	auto dn = [h]()
+	{
+		return 2.0 * h * ( e - 1.0 / e + 2.9 );
+	};
+
+	std::vector< std::vector< FP > > A( N, std::vector< FP >( N ) );
+	auto& B = solution;
+
+	FP xi = 0.0;
+
+	FP b = 2.0 + h * h;
+
+	for( int i = 0; i < N - 1; i++ )
+	{
+		if( i != 0 )
+			A[ i ][ i - 1 ] = 1.0;
+
+		A[ i ][ i ] 	= -b;
+		A[ i ][ i + 1 ] = 1.0;
+
+		B[ i ] = di( xi );
+		xi += h;
+	}
+	
+	A[ N - 1 ][ N - 2 ] = b - 4.0;
+	A[ N - 1 ][ N - 1 ] = 2.0;
+	B[ N - 1 ] = dn() - di( 1.0 - h );
+
+	sweep( A, B, N );
+}
+
+
 int main( int argc, char* argv[] )
 {
 	if( argc != 2 )
@@ -173,9 +214,11 @@ int main( int argc, char* argv[] )
 	int N = atoi( argv[ 1 ] );
 	FP h = 1.0 / ( FP )N;
 
-	FP* solution = new FP[ N ];
+	std::vector< FP > solution1( N );
+	std::vector< FP > solution2( N );
 
-	TridiagonalMatrixAlgorithm( N, solution );
+	TridiagonalMatrixAlgorithm( N, solution1 );
+	TridiagonalMatrixAlgorithmLagrange( N, solution2 );
 
 	FILE* f = fopen( "data", "w" );
 
@@ -184,7 +227,7 @@ int main( int argc, char* argv[] )
 	for( int i = 0; i < N; i++ )
 	{
 		FP y = -2.0 + exp( -xi ) + exp( xi ) - 2.9 * xi + 2.9 * xi * xi;
-		fprintf( f, "%.06f %.06f %.06f\n", xi, y, solution[ i ] );
+		fprintf( f, "%.06f %.06f %.06f %.06f\n", xi, y, solution1[ i ], solution2[ i ] );
 
 		xi += h;
 	}
