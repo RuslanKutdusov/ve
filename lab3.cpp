@@ -82,88 +82,6 @@ void TridiagonalMatrixAlgorithm( int N, std::vector< FP >& solution )
 
 
 //
-typedef std::function< FP( FP, FP, FP ) > Func;
-
-
-//
-double RungeKutta( Func& f, FP h, FP xi, FP yi, FP zi )
-{
-	FP k1 = f( xi, 				yi, 			zi );
-	FP k2 = f( xi + h / 2.0, 	yi + k1 / 2.0, 	zi + k1 / 2.0 );
-	FP k3 = f( xi + h / 2.0,	yi + k2 / 2.0, 	zi + k2 / 2.0 );
-	FP k4 = f( xi + h, 			yi + k3, 		zi + k3 );
-
-	return h * ( k1 + 2.0 * k2 + 2.0 * k3 + k4 ) / 6.0;	
-}
-
-
-//
-void RungeKutta( Func& V, Func& U, FP h, int N, FP x0, FP* yi, FP* zi )
-{
-	FP xi = x0;
-
-	for( int i = 1; i < N; i++ )
-	{
-		yi[ i ] = yi[ i - 1 ] + RungeKutta( V, h, xi, yi[ i - 1 ], zi[ i - 1 ] );
-		zi[ i ] = zi[ i - 1 ] + RungeKutta( U, h, xi, yi[ i - 1 ], zi[ i - 1 ] );
-
-		xi += h;
-	}	
-}
-
-
-//
-void Shoot( const int N, FP* yiRunge )
-{
-	FP x0 = 0.0;
-	FP h = 1.0 / ( FP )N;
-	FP y0 = 0.0;
-	FP z1 = e - 1.0 / e + 2.9;
-
-	FP ziRunge[ N ];
-	FP A[ 2 ] = { -10.0, 10.0 };
-	FP B[ 2 ];
-
-	Func V = []( FP x, FP y, FP z ) -> FP
-	{
-		return z;
-	};
-
-	Func U = []( FP x, FP y, FP z ) -> FP
-	{
-		return y + 7.8 - 2.9 * x * x + 2.9 * x;
-	};
-
-	yiRunge[ 0 ] = y0;
-
-	ziRunge[ 0 ] = A[ 0 ];
-	RungeKutta( V, U, h, N, x0, yiRunge, ziRunge );
-
-	B[ 0 ] = ziRunge[ N - 1 ];
-
-	while( 1 )
-	{
-		ziRunge[ 0 ] = A[ 1 ];
-		RungeKutta( V, U, h, N, x0, yiRunge, ziRunge );
-
-		B[ 1 ] = ziRunge[ N - 1 ];
-		printf( "%f %f %f %f\n", A[ 0 ], A[ 1 ], B[ 0 ], B[ 1 ] );
-		if( fabs( B[ 1 ] - z1 ) < 0.0001 || isnan( B[ 1 ] ) )
-		{
-			printf("%f\n", B[ 1 ] );
-			break;
-		}
-
-		FP A2 = A[ 1 ] - ( B[ 1 ] - z1 ) * ( A[ 1 ] - A[ 0 ] ) / ( ( B[ 1 ] - z1 ) - ( B[ 0 ] - z1 ) );
-
-		A[ 0 ] = A[ 1 ];
-		A[ 1 ] = A2;
-		B[ 0 ] = B[ 1 ];
-	}
-}
-
-
-//
 void TridiagonalMatrixAlgorithmLagrange( int N, std::vector< FP >& solution )
 {
 	FP h = 1.0 / ( FP )N;
@@ -206,6 +124,79 @@ void TridiagonalMatrixAlgorithmLagrange( int N, std::vector< FP >& solution )
 }
 
 
+//
+typedef std::function< FP( FP, FP, FP ) > Func;
+
+
+//
+void RungeKutta( Func& V, Func& U, FP h, int N, FP x0, FP* y, FP* z )
+{
+	FP xi = x0;
+
+	for( int i = 0; i < N - 1; i++ )
+	{
+		const FP& zi = z[ i ];
+		const FP& yi = y[ i ];
+
+		FP q0 = U( xi, 				yi,		 			zi );
+		FP k0 = V( 0.0, 			0.0, 				zi );
+
+		FP q1 = U( xi + h / 2.0, 	yi + k0 * h / 2.0, 	zi + q0 * h / 2.0 );
+		FP k1 = V( 0.0, 			0.0, 				zi + q0 * h / 2.0 );
+
+		FP q2 = U( xi + h / 2.0,	yi + k1 * h / 2.0, 	zi + q1 * h / 2.0 );
+		FP k2 = V( 0.0, 			0.0, 				zi + q1 * h / 2.0 );
+
+		FP q3 = U( xi + h,			yi + k2 * h,	 	zi + q2 * h );
+		FP k3 = V( 0.0, 			0.0, 				zi + q2 * h );
+
+		y[ i + 1 ] =  yi + h * ( k0 + 2.0 * k1 + 2.0 * k2 + k3 ) / 6.0;	
+		z[ i + 1 ] =  zi + h * ( q0 + 2.0 * q1 + 2.0 * q2 + q3 ) / 6.0;	
+
+		xi += h;
+	}	
+}
+
+
+//
+void Shoot( const int N, std::vector< FP >& yiRunge )
+{
+	FP x0 = 0.0;
+	FP h = 1.0 / ( FP )N;
+	FP y0 = 0.0;
+	FP z1 = e - 1.0 / e + 2.9;
+
+	FP ziRunge[ N ];
+
+	Func V = []( FP x, FP y, FP z ) -> FP
+	{
+		return z;
+	};
+
+	Func U = []( FP x, FP y, FP z ) -> FP
+	{
+		return y + 7.8 - 2.9 * x * x + 2.9 * x;
+	};
+
+	FP eta = 0.0;
+
+	yiRunge[ 0 ] = y0;
+
+	while( 1 )
+	{
+		ziRunge[ 0 ] = eta;
+
+		RungeKutta( V, U, h, N, x0, yiRunge.data(), ziRunge );
+
+		if( fabs( ziRunge[ N - 1 ] - z1 ) < 0.0001 ) 
+				break;
+
+		eta -= ( ziRunge[ N - 1 ] - z1 ) / ziRunge[ N - 1 ];
+	}
+}
+
+
+//
 int main( int argc, char* argv[] )
 {
 	if( argc != 2 )
@@ -216,9 +207,11 @@ int main( int argc, char* argv[] )
 
 	std::vector< FP > solution1( N );
 	std::vector< FP > solution2( N );
+	std::vector< FP > solution3( N );
 
 	TridiagonalMatrixAlgorithm( N, solution1 );
 	TridiagonalMatrixAlgorithmLagrange( N, solution2 );
+	Shoot( N, solution3 );
 
 	FILE* f = fopen( "data", "w" );
 
@@ -227,7 +220,7 @@ int main( int argc, char* argv[] )
 	for( int i = 0; i < N; i++ )
 	{
 		FP y = -2.0 + exp( -xi ) + exp( xi ) - 2.9 * xi + 2.9 * xi * xi;
-		fprintf( f, "%.06f %.06f %.06f %.06f\n", xi, y, solution1[ i ], solution2[ i ] );
+		fprintf( f, "%.06f %.06f %.06f %.06f %.06f\n", xi, y, solution1[ i ], solution2[ i ], solution3[ i ] );
 
 		xi += h;
 	}
