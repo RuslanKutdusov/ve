@@ -54,12 +54,12 @@ void TridiagonalMatrixAlgorithm( int N, std::vector< FP >& solution )
 		return -e * h + h / e - 2.9 * h;
 	};
 
-	std::vector< std::vector< FP > > A( N, std::vector< FP >( N ) );
+	std::vector< std::vector< FP > > A( N + 1, std::vector< FP >( N + 1 ) );
 	auto& B = solution;
 
 	FP xi = 0.0;
 
-	for( int i = 0; i < N - 1; i++ )
+	for( int i = 0; i < N; i++ )
 	{
 		FP b = 2.0 + h * h;
 
@@ -73,11 +73,11 @@ void TridiagonalMatrixAlgorithm( int N, std::vector< FP >& solution )
 		xi += h;
 	}
 	
-	A[ N - 1 ][ N - 2 ] = 1.0;
-	A[ N - 1 ][ N - 1 ] = -1.0;
-	B[ N - 1 ] = dn();
+	A[ N ][ N - 1 ] = 1.0;
+	A[ N ][ N ] = -1.0;
+	B[ N ] = dn();
 
-	sweep( A, B, N );
+	sweep( A, B, N + 1 );
 }
 
 
@@ -97,14 +97,14 @@ void TridiagonalMatrixAlgorithmLagrange( int N, std::vector< FP >& solution )
 		return 2.0 * h * ( e - 1.0 / e + 2.9 );
 	};
 
-	std::vector< std::vector< FP > > A( N, std::vector< FP >( N ) );
+	std::vector< std::vector< FP > > A( N + 1, std::vector< FP >( N + 1 ) );
 	auto& B = solution;
 
 	FP xi = 0.0;
 
 	FP b = 2.0 + h * h;
 
-	for( int i = 0; i < N - 1; i++ )
+	for( int i = 0; i < N; i++ )
 	{
 		if( i != 0 )
 			A[ i ][ i - 1 ] = 1.0;
@@ -116,11 +116,11 @@ void TridiagonalMatrixAlgorithmLagrange( int N, std::vector< FP >& solution )
 		xi += h;
 	}
 	
-	A[ N - 1 ][ N - 2 ] = b - 4.0;
-	A[ N - 1 ][ N - 1 ] = 2.0;
-	B[ N - 1 ] = dn() - di( 1.0 - h );
+	A[ N ][ N - 1 ] = b - 4.0;
+	A[ N ][ N ] = 2.0;
+	B[ N ] = dn() - di( 1.0 - h );
 
-	sweep( A, B, N );
+	sweep( A, B, N + 1 );
 }
 
 
@@ -133,7 +133,7 @@ void RungeKutta( Func& V, Func& U, FP h, int N, FP x0, FP* y, FP* z )
 {
 	FP xi = x0;
 
-	for( int i = 0; i < N - 1; i++ )
+	for( int i = 0; i < N; i++ )
 	{
 		const FP& zi = z[ i ];
 		const FP& yi = y[ i ];
@@ -166,8 +166,6 @@ void Shoot( const int N, std::vector< FP >& yiRunge )
 	FP y0 = 0.0;
 	FP z1 = e - 1.0 / e + 2.9;
 
-	FP ziRunge[ N ];
-
 	Func V = []( FP x, FP y, FP z ) -> FP
 	{
 		return z;
@@ -178,9 +176,11 @@ void Shoot( const int N, std::vector< FP >& yiRunge )
 		return y + 7.8 - 2.9 * x * x + 2.9 * x;
 	};
 
+	// Рунге-Кутта
 	FP eta = 0.0;
 
 	yiRunge[ 0 ] = y0;
+	FP ziRunge[ N + 1 ];
 
 	while( 1 )
 	{
@@ -188,11 +188,13 @@ void Shoot( const int N, std::vector< FP >& yiRunge )
 
 		RungeKutta( V, U, h, N, x0, yiRunge.data(), ziRunge );
 
-		if( fabs( ziRunge[ N - 1 ] - z1 ) < 0.0001 ) 
+		if( fabs( ziRunge[ N ] - z1 ) < 0.1 ) 
 				break;
 
-		eta -= ( ziRunge[ N - 1 ] - z1 ) / ziRunge[ N - 1 ];
+		eta -= ( ziRunge[ N ] - z1 ) / ziRunge[ N ];
 	}
+
+	// Эйлер
 }
 
 
@@ -205,9 +207,9 @@ int main( int argc, char* argv[] )
 	int N = atoi( argv[ 1 ] );
 	FP h = 1.0 / ( FP )N;
 
-	std::vector< FP > solution1( N );
-	std::vector< FP > solution2( N );
-	std::vector< FP > solution3( N );
+	std::vector< FP > solution1( N + 1 );
+	std::vector< FP > solution2( N + 1 );
+	std::vector< FP > solution3( N + 1 );
 
 	TridiagonalMatrixAlgorithm( N, solution1 );
 	TridiagonalMatrixAlgorithmLagrange( N, solution2 );
@@ -217,7 +219,7 @@ int main( int argc, char* argv[] )
 
 	FP xi = 0.0f;
 
-	for( int i = 0; i < N; i++ )
+	for( int i = 0; i <= N; i++ )
 	{
 		FP y = -2.0 + exp( -xi ) + exp( xi ) - 2.9 * xi + 2.9 * xi * xi;
 		fprintf( f, "%.06f %.06f %.06f %.06f %.06f\n", xi, y, solution1[ i ], solution2[ i ], solution3[ i ] );
