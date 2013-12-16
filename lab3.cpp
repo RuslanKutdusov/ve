@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <functional>
 
 typedef double FP;
 const FP e = 2.718281828;
@@ -81,6 +82,89 @@ void TridiagonalMatrixAlgorithm( int N, FP* solution )
 }
 
 
+//
+typedef std::function< FP( FP, FP, FP ) > Func;
+
+
+//
+double RungeKutta( Func& f, FP h, FP xi, FP yi, FP zi )
+{
+	FP k1 = f( xi, 				yi, 			zi );
+	FP k2 = f( xi + h / 2.0, 	yi + k1 / 2.0, 	zi + k1 / 2.0 );
+	FP k3 = f( xi + h / 2.0,	yi + k2 / 2.0, 	zi + k2 / 2.0 );
+	FP k4 = f( xi + h, 			yi + k3, 		zi + k3 );
+
+	return h * ( k1 + 2.0 * k2 + 2.0 * k3 + k4 ) / 6.0;	
+}
+
+
+//
+void RungeKutta( Func& V, Func& U, FP h, int N, FP x0, FP* yi, FP* zi )
+{
+	FP xi = x0;
+
+	for( int i = 1; i < N; i++ )
+	{
+		yi[ i ] = yi[ i - 1 ] + RungeKutta( V, h, xi, yi[ i - 1 ], zi[ i - 1 ] );
+		zi[ i ] = zi[ i - 1 ] + RungeKutta( U, h, xi, yi[ i - 1 ], zi[ i - 1 ] );
+
+		xi += h;
+	}	
+}
+
+
+//
+void Shoot( const int N, FP* yiRunge )
+{
+	FP x0 = 0.0;
+	FP h = 1.0 / ( FP )N;
+	FP y0 = 0.0;
+	FP z1 = e - 1.0 / e + 2.9;
+
+	FP ziRunge[ N ];
+	FP A[ 2 ] = { -10.0, 10.0 };
+	FP B[ 2 ];
+
+	Func V = []( FP x, FP y, FP z ) -> FP
+	{
+		return z;
+	};
+
+	Func U = []( FP x, FP y, FP z ) -> FP
+	{
+		return y + 7.8 - 2.9 * x * x + 2.9 * x;
+	};
+
+	yiRunge[ 0 ] = y0;
+
+	ziRunge[ 0 ] = A[ 0 ];
+	RungeKutta( V, U, h, N, x0, yiRunge, ziRunge );
+
+	B[ 0 ] = ziRunge[ N - 1 ];
+
+	while( 1 )
+	{
+		ziRunge[ 0 ] = A[ 1 ];
+		RungeKutta( V, U, h, N, x0, yiRunge, ziRunge );
+
+		B[ 1 ] = ziRunge[ N - 1 ];
+		printf( "%f %f %f %f\n", A[ 0 ], A[ 1 ], B[ 0 ], B[ 1 ] );
+		if( fabs( B[ 1 ] - z1 ) < 0.0001 || isnan( B[ 1 ] ) )
+		{
+			printf("%f\n", B[ 1 ] );
+			break;
+		}
+
+		FP A2 = A[ 1 ] - ( B[ 1 ] - z1 ) * ( A[ 1 ] - A[ 0 ] ) / ( ( B[ 1 ] - z1 ) - ( B[ 0 ] - z1 ) );
+
+		A[ 0 ] = A[ 1 ];
+		A[ 1 ] = A2;
+		B[ 0 ] = B[ 1 ];
+	}
+}
+
+
+//
 int main( int argc, char* argv[] )
 {
 	if( argc != 2 )
