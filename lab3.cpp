@@ -159,7 +159,47 @@ void RungeKutta( Func& V, Func& U, FP h, int N, FP x0, FP* y, FP* z )
 
 
 //
-void Shoot( const int N, std::vector< FP >& yiRunge )
+void Euler( Func& V, Func& U, FP h, int N, FP x0, FP* y, FP* z )
+{
+	FP xi = x0;
+
+	for( int i = 0; i < N; i++ )
+	{
+		const FP& zi = z[ i ];
+		const FP& yi = y[ i ];
+
+		y[ i + 1 ] =  yi + h * V( 0.0, 0.0, zi );
+		z[ i + 1 ] =  zi + h * U( xi, yi, zi );	
+
+		xi += h;
+	}		
+}
+
+
+//
+void EulerRecalc( Func& V, Func& U, FP h, int N, FP x0, FP* y, FP* z )
+{
+	FP xi = x0;
+
+	for( int i = 0; i < N; i++ )
+	{
+		const FP& zi = z[ i ];
+		const FP& yi = y[ i ];
+
+		FP y_ =  yi + h * V( 0.0, 0.0, zi );
+		FP z_ =  zi + h * U( xi, yi, 0.0 );
+
+		y[ i + 1 ] =  yi + h / 2.0 * ( V( 0.0, 0.0, zi ) + V( 0.0, 0.0, z_ ) );
+
+		z[ i + 1 ] =  zi + h / 2.0 * ( U( xi, yi, 0.0 ) + U( xi + h, y_, 0.0 ) );
+
+		xi += h;
+	}		
+}
+
+
+//
+void Shoot( const int N, std::vector< FP >& yiRunge, std::vector< FP >& yiEuler, std::vector< FP >& yiEulerRecalc )
 {
 	FP x0 = 0.0;
 	FP h = 1.0 / ( FP )N;
@@ -176,25 +216,58 @@ void Shoot( const int N, std::vector< FP >& yiRunge )
 		return y + 7.8 - 2.9 * x * x + 2.9 * x;
 	};
 
+	FP zi[ N + 1 ];
+
 	// Рунге-Кутта
 	FP eta = 0.0;
 
 	yiRunge[ 0 ] = y0;
-	FP ziRunge[ N + 1 ];
 
 	while( 1 )
 	{
-		ziRunge[ 0 ] = eta;
+		zi[ 0 ] = eta;
 
-		RungeKutta( V, U, h, N, x0, yiRunge.data(), ziRunge );
+		RungeKutta( V, U, h, N, x0, yiRunge.data(), zi );
 
-		if( fabs( ziRunge[ N ] - z1 ) < 0.1 ) 
+		if( fabs( zi[ N ] - z1 ) < 0.1 ) 
 				break;
 
-		eta -= ( ziRunge[ N ] - z1 ) / ziRunge[ N ];
+		eta -= ( zi[ N ] - z1 ) / zi[ N ];
 	}
 
 	// Эйлер
+	eta = 0.0;
+
+	yiEuler[ 0 ] = y0;
+
+	while( 1 )
+	{
+		zi[ 0 ] = eta;
+
+		Euler( V, U, h, N, x0, yiEuler.data(), zi );
+
+		if( fabs( zi[ N ] - z1 ) < 0.1 ) 
+				break;
+
+		eta -= ( zi[ N ] - z1 ) / zi[ N ];
+	}
+
+	// Эйлер  с пересчетом
+	eta = 0.0;
+
+	yiEulerRecalc[ 0 ] = y0;
+
+	while( 1 )
+	{
+		zi[ 0 ] = eta;
+
+		EulerRecalc( V, U, h, N, x0, yiEulerRecalc.data(), zi );
+
+		if( fabs( zi[ N ] - z1 ) < 0.1 ) 
+				break;
+
+		eta -= ( zi[ N ] - z1 ) / zi[ N ];
+	}
 }
 
 
@@ -210,10 +283,12 @@ int main( int argc, char* argv[] )
 	std::vector< FP > solution1( N + 1 );
 	std::vector< FP > solution2( N + 1 );
 	std::vector< FP > solution3( N + 1 );
+	std::vector< FP > solution4( N + 1 );
+	std::vector< FP > solution5( N + 1 );
 
 	TridiagonalMatrixAlgorithm( N, solution1 );
 	TridiagonalMatrixAlgorithmLagrange( N, solution2 );
-	Shoot( N, solution3 );
+	Shoot( N, solution3, solution4, solution5 );
 
 	FILE* f = fopen( "data", "w" );
 
@@ -222,10 +297,12 @@ int main( int argc, char* argv[] )
 	for( int i = 0; i <= N; i++ )
 	{
 		FP y = -2.0 + exp( -xi ) + exp( xi ) - 2.9 * xi + 2.9 * xi * xi;
-		fprintf( f, "%.06f %.06f %.06f %.06f %.06f\n", xi, y, solution1[ i ], solution2[ i ], solution3[ i ] );
+		fprintf( f, "%.06f %.06f %.06f %.06f %.06f %.06f %.06f\n", xi, y, solution1[ i ], solution2[ i ], solution3[ i ], solution4[ i ], solution5[ i ] );
 
 		xi += h;
 	}
+
+	fclose( f );
 
 	return 0;
 }
