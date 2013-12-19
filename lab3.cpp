@@ -59,7 +59,8 @@ void TridiagonalMatrixAlgorithm( int N, std::vector< FP >& solution )
 
 	FP xi = 0.0;
 
-	for( int i = 0; i < N; i++ )
+	A[ 0 ][ 0 ] = 1.0;
+	for( int i = 1; i < N; i++ )
 	{
 		FP b = 2.0 + h * h;
 
@@ -104,7 +105,8 @@ void TridiagonalMatrixAlgorithmLagrange( int N, std::vector< FP >& solution )
 
 	FP b = 2.0 + h * h;
 
-	for( int i = 0; i < N; i++ )
+	A[ 0 ][ 0 ] = 1.0;
+	for( int i = 1; i < N; i++ )
 	{
 		if( i != 0 )
 			A[ i ][ i - 1 ] = 1.0;
